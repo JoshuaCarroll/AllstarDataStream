@@ -1,0 +1,6 @@
+@AsteriskAMIStream_HostAddress = http://localhost:5272
+
+GET {{AsteriskAMIStream_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
