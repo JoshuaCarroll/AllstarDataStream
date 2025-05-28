@@ -51,16 +51,16 @@ public class AllstarClient
         if (tcpClient.Connected)
             return;
 
-        ConsoleHelper.Write($"Connecting to AMI server at {amiHost}:{amiPort}", "", ConsoleColor.DarkYellow);
+        ConsoleHelper.Write($"Connecting to AMI server at {amiHost}:{amiPort}", "* ", ConsoleColor.DarkYellow);
         await tcpClient.ConnectAsync(amiHost, amiPort);
 
         if (!tcpClient.Connected)
         {
-            ConsoleHelper.Write("** Unable to connect to the AMI server.", "", ConsoleColor.Red);
+            ConsoleHelper.Write("Unable to connect to the AMI server.", "* ", ConsoleColor.Red);
             return;
         }
 
-        ConsoleHelper.Write($"Connected to AMI server at {amiHost}:{amiPort}.", "", ConsoleColor.DarkYellow);
+        ConsoleHelper.Write($"Connected to AMI server at {amiHost}:{amiPort}.", "* ", ConsoleColor.DarkYellow);
 
         stream = tcpClient.GetStream();
         writer = new StreamWriter(stream, Encoding.ASCII) { AutoFlush = true };
@@ -80,7 +80,7 @@ public class AllstarClient
         await writer.WriteLineAsync(loginCommand);
         await writer.FlushAsync();  // <-- critical flush
 
-        ConsoleHelper.Write("** Login command sent to AMI server.", "", ConsoleColor.DarkYellow);
+        ConsoleHelper.Write("Login command sent to AMI server.", "* ", ConsoleColor.DarkYellow);
 
         // Start reader loop after successful login
         readerTask = Task.Run(() => ReaderLoopAsync(cancellationTokenSource.Token));
@@ -95,13 +95,13 @@ public class AllstarClient
         {
             if (tcpClient == null || !tcpClient.Connected)
             {
-                ConsoleHelper.Write("", "** TCP client is not connected. Attempting to connect...", ConsoleColor.DarkYellow);
+                ConsoleHelper.Write("TCP client is not connected. Attempting to connect...", "* ", ConsoleColor.DarkYellow);
                 await ConnectAsync();
             }
 
             ConsoleHelper.Write(command, ">> ", ConsoleColor.Blue, ConsoleColor.Black);
 
-            await writer!.WriteLineAsync("\r\n" + command);
+            await writer!.WriteLineAsync("\r\n\r\n" + command);
             await writer.FlushAsync();
         }
         finally
@@ -114,7 +114,7 @@ public class AllstarClient
     {
         if (reader == null)
         {
-            ConsoleHelper.Write("** StreamReader is null. Cannot start reading responses.", "", ConsoleColor.Red);
+            ConsoleHelper.Write("StreamReader is null. Cannot start reading responses.", "* ", ConsoleColor.Red);
             return;
         }
 
@@ -127,13 +127,11 @@ public class AllstarClient
 
                 if (line == null)
                 {
-                    ConsoleHelper.Write("** Stream closed by server.", "", ConsoleColor.Red);
+                    ConsoleHelper.Write("Stream closed by server.", "* ", ConsoleColor.Red);
                     break;
                 }
                 else if (line == string.Empty)
                 {
-                    ConsoleHelper.Write("<<<<<<<<<<<<", "", ConsoleColor.Green);
-
                     // Message boundary (blank line)
                     string fullMessage = messageBuilder.ToString();
                     messageBuilder.Clear();
@@ -141,18 +139,18 @@ public class AllstarClient
                     // Optionally queue or dispatch the message
                     responseQueue.Add(fullMessage);
 
-                    ParseResponse(fullMessage); // Or fire an event handler
+                    ParseResponse(fullMessage);
                 }
                 else
                 {
-                    ConsoleHelper.Write(line, "<< ", ConsoleColor.Green);
+                    ConsoleHelper.Write(line, "", ConsoleColor.Green);
                     messageBuilder.AppendLine(line);
                 }
             }
         }
         catch (Exception ex)
         {
-            ConsoleHelper.Write($"** Reader loop exception: {ex.GetType().Name}: {ex.Message}", "", ConsoleColor.Red);
+            ConsoleHelper.Write($"Reader loop exception: {ex.GetType().Name}: {ex.Message}", "* ", ConsoleColor.Red);
         }
     }
 
@@ -175,74 +173,111 @@ public class AllstarClient
             return;
         }
 
-        // Regex pattern to match key-value pairs (e.g., "Response: Success")
-        var regex = new Regex(@"(?<=^|\r\n)(Response|ActionID|Message|Node|Conn|LinkedNodes|RPT_LINKS):\s*(.*?)\r?\n", RegexOptions.Multiline);
-
-        foreach (Match match in regex.Matches(rawMessage))
+        var reWelcome = new Regex(@"^Asterisk Call Manager/1.0$", RegexOptions.Multiline);
+        var reError = new Regex(@"^Response: Error\nMessage: (.*)$", RegexOptions.Multiline);
+        var reSuccess = new Regex(@"^Response: Success\n(?:ActionID: .*\n)?Message: (.*)$", RegexOptions.Multiline);
+        var reXstat = new Regex(@"^(?:ActionID: (.*)\n)?Response: Success\nNode: (.*)\n(?:Conn: (\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*\n)*(?:LinkedNodes: (.*))*\n(?:Var: RPT_TXKEYED=(.*)\n)*(?:Var: RPT_NUMLINKS=(.*)\n)?(?:Var: RPT_LINKS=(.*)\n)?(?:Var: RPT_NUMALINKS=(.*)\n)?(?:Var: RPT_ALINKS=(.*)\n)?(?:Var: RPT_RXKEYED=(.*)\n)?(?:Var: RPT_AUTOPATCHUP=(.*)\n)?(?:Var: RPT_ETXKEYED=(.*)\n)?(?:Var: TRANSFERCAPABILITY=(.*)\n)?(?:parrot_ena: (.*)\n)?(?:sys_ena: (.*)\n)?(?:tot_ena: (.*)\n)?(?:link_ena: (.*)\n)?(?:patch_ena: (.*)\n)?(?:patch_state: (.*)\n)?(?:sch_ena: (.*)\n)?(?:user_funs: (.*)\n)?(?:tail_type: (.*)\n)?(?:iconns: (.*)\n)?(?:tot_state: (.*)\n)?(?:ider_state: (.*)\n)?(?:tel_mode: (.*)\n)?", RegexOptions.Multiline);
+        var reRptLinks = new Regex(@"^Event: (?:RPT_ALINKS|RPT_NUMALINKS|RPT_LINKS|RPT_NUMLINKS|RPT_TXKEYED)\n(?:Privilege: (.*)\n)(?:Node: (.*)\n)(?:Channel: (.*)\n)(?:EventValue: (.*)\n)(?:LastKeyedTime: (.*)\n)\n(?:LastTxKeyedTime: (.*)\n)", RegexOptions.Multiline);
+        var reNewChannel = new Regex(@"^Event: Newchannel\n(?:Privilege: (.*)\n)(?:Channel: (.*)\n)(?:State: (.*)\n)(?:CallerIDNum: (.*)\n)(?:CallerIDName: (.*)\n)(?:Uniqueid: (.*)\n)", RegexOptions.Multiline);
+        var reHangup = new Regex(@"^Event: Hangup\n(?:Privilege: (.*)\n)(?:Channel: (.*)\n)(?:Uniqueid: (.*)\n)(?:Cause: (.*)\n)(?:Cause-txt: (.*)\n)", RegexOptions.Multiline);
+        List<Regex> regexList = new List<Regex>
         {
-            var key = match.Groups[1].Value;
-            var value = match.Groups[2].Value;
+            reWelcome,
+            reError,
+            reSuccess,
+            reXstat,
+            reRptLinks,
+            reNewChannel,
+            reHangup
+        };
 
-            switch (key)
+        
+        foreach (var regex in regexList)
+        {
+            var match = regex.Match(rawMessage);
+            if (match.Success)
             {
-                //case "Response":
-                //    Response = value;
-                //    break;
-                //case "ActionID":
-                //    ActionID = value;
-                //    break;
-                //case "Message":
-                //    Message = value;
-                //    break;
-                //case "Node":
-                //    Node = value;
-                //    break;
-                case "Conn":
-                    try
-                    {
-                        // Check to see if this is a SawStat result
-                        string sawStatPattern = @"^(\d+)\s(\d+)\s(\d+)\s(\d+)$";
-                        var sawStatMatch = Regex.Match(value, sawStatPattern);
-                        if (sawStatMatch.Success) // SawStat result
-                        {
-                            // Parse as SawStat result
-                            var connection = AllstarConnection.FindOrCreate(sawStatMatch.Groups[1].Value, AllstarConnections);
-                            connection.Transmitting = sawStatMatch.Groups[2].Value == "1";
-                            connection.TimeSinceTransmit = sawStatMatch.Groups[3].Value;
-                            connection.Type = "Direct";
-                        }
-                        else // XSTAT result
-                        {
-                            var nodeNumber = value.Substring(0, 10).Trim();
-                            var connection = AllstarConnection.FindOrCreate(nodeNumber, AllstarConnections);
+                // Handle the matched response
+                switch (regex)
+                {
+                    case var _ when regex == reWelcome:
+                        ConsoleHelper.Write(rawMessage, "", ConsoleColor.Green);
+                        break;
+                    case var _ when regex == reError:
+                        ConsoleHelper.Write($"Error: {match.Groups[1].Value}", "", ConsoleColor.Red);
+                        break;
+                    case var _ when regex == reSuccess:
+                        ConsoleHelper.Write($"Success: {match.Groups[1].Value}", "* ", ConsoleColor.Green);
+                        break;
+                    case var _ when regex == reXstat:
+                        var nodeNumber = match.Groups[2].Value;
+                        var connection = AllstarConnection.FindOrCreate(nodeNumber, AllstarConnections);
 
-                            // Populate connection details
-                            connection.IpAddress = value.Substring(10, 20).Trim();
-                            connection.SomeNumber = value.Substring(30, 12).Trim();
-                            connection.Direction = value.Substring(42, 11).Trim();
-                            connection.TimeSpanConnected = value.Substring(53, 20).Trim();
-                            connection.Status = value.Substring(73, 20).Trim();
-                            connection.Type = "Direct";
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        ConsoleHelper.Write("Error parsing connection data:\r\n" + value, "** ", ConsoleColor.Red);
-                    }
-
-                    break;
-                case "LinkedNodes":
-                    var arrLinkedNodes = value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var node in arrLinkedNodes)
-                    {
-                        var connection = AllstarConnection.FindOrCreate(node.Trim().Substring(1), AllstarConnections);
-                        connection.Node = node.Trim().Substring(1);
-                        connection.Type = "Linked";
-                        connection.Status = node.Trim().Substring(0, 1) == "R" ? "Monitoring" : "Established";
-                    }
-                    break;
+                        //connection.IpAddress = value.Substring(10, 20).Trim();
+                        //connection.SomeNumber = value.Substring(30, 12).Trim();
+                        //connection.Direction = value.Substring(42, 11).Trim();
+                        //connection.TimeSpanConnected = value.Substring(53, 20).Trim();
+                        //connection.Status = value.Substring(73, 20).Trim();
+                        //connection.Type = "Direct";
+                        break;
+                    case var _ when regex == reRptLinks:
+                        // Handle RPT_LINKS event
+                        break;
+                    case var _ when regex == reNewChannel:
+                        // Handle Newchannel event
+                        break;
+                    case var _ when regex == reHangup:
+                        // Handle Hangup event
+                        break;
+                }
             }
         }
+
+        //var regex = new Regex(@"(?<=^|\r\n)(Response|ActionID|Message|Node|Conn|LinkedNodes|RPT_LINKS):\s*(.*?)\r?\n", RegexOptions.Multiline);
+        //foreach (Match match in regex.Matches(rawMessage))
+        //{
+        //    var key = match.Groups[1].Value;
+        //    var value = match.Groups[2].Value;
+
+        //    switch (key)
+        //    {
+        //        case "Conn":
+        //            try
+        //            {
+        //                // Check to see if this is a SawStat result
+        //                string sawStatPattern = @"^(\d+)\s(\d+)\s(\d+)\s(\d+)$";
+        //                var sawStatMatch = Regex.Match(value, sawStatPattern);
+        //                if (sawStatMatch.Success) // SawStat result
+        //                {
+        //                    // Parse as SawStat result
+        //                    var connection = AllstarConnection.FindOrCreate(sawStatMatch.Groups[1].Value, AllstarConnections);
+        //                    connection.Transmitting = sawStatMatch.Groups[2].Value == "1";
+        //                    connection.TimeSinceTransmit = sawStatMatch.Groups[3].Value;
+        //                    connection.Type = "Direct";
+        //                }
+        //                else // XSTAT result
+        //                {
+
+        //                }
+        //            }
+        //            catch (Exception)
+        //            {
+        //                ConsoleHelper.Write("Error parsing connection data:\r\n" + value, "** ", ConsoleColor.Red);
+        //            }
+
+        //            break;
+        //        case "LinkedNodes":
+        //            var arrLinkedNodes = value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+        //            foreach (var node in arrLinkedNodes)
+        //            {
+        //                var connection = AllstarConnection.FindOrCreate(node.Trim().Substring(1), AllstarConnections);
+        //                connection.Node = node.Trim().Substring(1);
+        //                connection.Type = "Linked";
+        //                connection.Status = node.Trim().Substring(0, 1) == "R" ? "Monitoring" : "Established";
+        //            }
+        //            break;
+        //    }
+        //}
     }
 
     public void ClearExpiredConnections(TimeSpan expirationTime)
