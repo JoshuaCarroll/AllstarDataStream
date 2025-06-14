@@ -57,7 +57,8 @@ if (rebuildConfigFile)
 }
 
 // Reload the configuration with the updated file
-builder.Configuration.AddJsonFile(configFilePath, optional: false, reloadOnChange: true)
+builder.Configuration
+    .AddJsonFile(configFilePath, optional: false, reloadOnChange: true)
     .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
     .Build();
 

@@ -12,44 +12,70 @@ namespace AsteriskAMIStream.Controllers
     [ApiController]
     public class AllstarController : Controller
     {
-        private static AllstarClient? _client;
-        private readonly AMISettings _amiSettings;
+        private static List<AllstarClient> _allstarClients = new();
+        private static List<AllstarLinkClient> _allstarLinkClients = new();
+        private readonly List<AMISettings> _amiSettingsList;
 
         public AllstarController(IConfiguration configuration)
         {
-            // Fetch the first AMI server configuration from appsettings.json
-            var amiSettingsList = configuration.GetSection("AMISettings").Get<List<AMISettings>>();
+            _amiSettingsList = configuration.GetSection("AMISettings").Get<List<AMISettings>>()
+                ?? throw new InvalidOperationException("AMISettings configuration is missing or empty.");
 
-            if (amiSettingsList == null || !amiSettingsList.Any())
+            if (_allstarClients.Count == 0)
             {
-                throw new InvalidOperationException("AMISettings configuration is missing or empty.");
-            }
+                foreach (var settings in _amiSettingsList)
+                {
+                    _allstarClients.Add(new AllstarClient(
+                        settings.Host,
+                        settings.Port,
+                        settings.Username,
+                        settings.Password,
+                        settings.NodeNumber
+                    ));
+                }
 
-            _amiSettings = amiSettingsList.First();
-
-            // Initialize the AsteriskClient with settings
-            if (_client == null)
-            {
-                _client = new AllstarClient(
-                    _amiSettings.Host,
-                    _amiSettings.Port,
-                    _amiSettings.Username,
-                    _amiSettings.Password,
-                    _amiSettings.NodeNumber
-                );
+                foreach (var settings in _amiSettingsList)
+                {
+                    _allstarLinkClients.Add(new AllstarLinkClient(
+                        int.Parse(settings.NodeNumber)
+                    ));
+                }
             }
         }
 
         [HttpGet("")]
         public async Task<ActionResult<List<AllstarConnection>>> GetNodes()
         {
-            await _client!.GetNodeInfoAsync(_amiSettings.NodeNumber);
+            var allConnections = new List<AllstarConnection>();
 
-            // Remove any connections that are older than 1 minute
-            _client.ClearExpiredConnections(TimeSpan.FromMinutes(1));
+            bool hasClearedExpiredConnections = false;
+            foreach (var client in _allstarClients)
+            {
+                if (!hasClearedExpiredConnections)
+                {
+                    client.ClearExpiredConnections(TimeSpan.FromMinutes(1));
+                    hasClearedExpiredConnections = true;
+                }
 
-            // Return all messages as a response
-            return Ok(_client.AllstarConnections);
+                await client.GetNodeInfoAsync(client.NodeNumber);    
+                allConnections.AddRange(client.AllstarConnections);
+            }
+
+            return Ok(allConnections);
+        }
+
+        [HttpGet("asl")]
+        public async Task<ActionResult<List<AllstarLinkStatsRootNode>>> GetAslNodeStatus()
+        {
+            var allRootNodes = new List<AllstarLinkStatsRootNode>();
+
+            foreach (var client in _allstarLinkClients)
+            {
+                AllstarLinkStatsRootNode root = await client.GetNodeInfoAsync();
+                allRootNodes.Add(root);
+            }
+
+            return Ok(allRootNodes);
         }
     }
 }

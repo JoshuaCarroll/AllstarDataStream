@@ -10,11 +10,8 @@
             Console.ForegroundColor = color;
             Console.BackgroundColor = backgroundColor;
 
-            var lines = outputString.Trim().Split('\n');
-            foreach (var line in lines)
-            {
-                Console.WriteLine(prefix + line.Trim());
-            }
+            outputString = outputString.Replace("\n", "\n" + prefix);
+            Console.WriteLine(outputString);
 
             Console.ForegroundColor = originalColor;
             Console.BackgroundColor = originalBackgroundColor;

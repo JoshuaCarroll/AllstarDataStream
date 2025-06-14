@@ -1,15 +1,10 @@
 ﻿using AsteriskAMIStream.Models;
 using AsteriskAMIStream.Services;
 using Newtonsoft.Json.Linq;
-using System;
 using System.Collections.Concurrent;
-using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 
 public class AllstarClient
 {
@@ -22,14 +17,13 @@ public class AllstarClient
     private readonly int amiPort;
     private readonly string amiUsername;
     private readonly string amiPassword;
-    private readonly string nodeNumber;
     private Task? readerTask;
     private BlockingCollection<string> responseQueue = new(); // Optional: use ConcurrentQueue if preferred
     private readonly SemaphoreSlim _streamLock = new(1, 1);
     private int _actionId = 0; // Action ID for the AMI commands
 
+    public readonly string NodeNumber;
     public List<AllstarConnection> AllstarConnections { get; set; }
-
     public string ActionID => $"{Interlocked.Increment(ref _actionId)}"; // Thread-safe increment for action ID
 
     public AllstarClient(string amiHost, int amiPort, string amiUsername, string amiPassword, string nodeNumber)
@@ -38,7 +32,7 @@ public class AllstarClient
         this.amiPort = amiPort;
         this.amiUsername = amiUsername;
         this.amiPassword = amiPassword;
-        this.nodeNumber = nodeNumber;
+        this.NodeNumber = nodeNumber;
 
         tcpClient = new TcpClient();
 
@@ -52,7 +46,17 @@ public class AllstarClient
             return;
 
         ConsoleHelper.Write($"Connecting to AMI server at {amiHost}:{amiPort}", "* ", ConsoleColor.DarkYellow);
-        await tcpClient.ConnectAsync(amiHost, amiPort);
+
+        try
+        {
+            await tcpClient.ConnectAsync(amiHost, amiPort);
+        }
+        catch (Exception ex)
+        {
+            ConsoleHelper.Write($"Unable to connect to the AMI server ({amiHost}:{amiPort}).", "* ", ConsoleColor.Red);
+            ConsoleHelper.Write(ex.Message, "", ConsoleColor.Red);
+            return;
+        }
 
         if (!tcpClient.Connected)
         {
@@ -72,10 +76,10 @@ public class AllstarClient
             $"USERNAME: {amiUsername}\r\n" +
             $"SECRET: {amiPassword}\r\n" +
             $"EVENTS: ON\r\n" +
-            $"ActionID: {ActionID}\r\n\r\n"; // <- Note the double newline!
+            $"ActionID: {ActionID}";
 
 
-        ConsoleHelper.Write(loginCommand, ">> ", ConsoleColor.Blue);
+        ConsoleHelper.Write(loginCommand, "", ConsoleColor.Blue);
 
         await writer.WriteLineAsync(loginCommand);
         await writer.FlushAsync();  // <-- critical flush
@@ -99,10 +103,15 @@ public class AllstarClient
                 await ConnectAsync();
             }
 
-            ConsoleHelper.Write(command, ">> ", ConsoleColor.Blue, ConsoleColor.Black);
+            if (tcpClient != null && tcpClient.Connected)
+            {
+                command = command.Trim();
 
-            await writer!.WriteLineAsync("\r\n\r\n" + command);
-            await writer.FlushAsync();
+                ConsoleHelper.Write(command, "", ConsoleColor.Blue, ConsoleColor.Black);
+
+                await writer!.WriteLineAsync("\r\n" + command.Trim() + "\r\n\r\n");
+                await writer.FlushAsync();
+            }
         }
         finally
         {
@@ -143,7 +152,6 @@ public class AllstarClient
                 }
                 else
                 {
-                    ConsoleHelper.Write(line, "", ConsoleColor.Green);
                     messageBuilder.AppendLine(line);
                 }
             }
@@ -160,78 +168,138 @@ public class AllstarClient
             $"ACTION: RptStatus\r\n" +
             $"COMMAND: XStat\r\n" +
             $"NODE: {nodeNumber}\r\n" + 
-            $"ActionID: {ActionID}\r\n\r\n";
+            $"ActionID: {ActionID}";
 
         await SendAsync(rptCommand);
     }
 
     private void ParseResponse(string rawMessage)
     {
+        // Replace CRLF and bare CR with LF, then trim end
+        var normalizedMessage = rawMessage.Replace("\r\n", "\n").Replace("\r", "\n").TrimEnd();
+
         // Parse the raw message into a structured format if needed
-        if (string.IsNullOrEmpty(rawMessage))
+        if (string.IsNullOrEmpty(normalizedMessage))
         {
             return;
         }
 
-        var reWelcome = new Regex(@"^Asterisk Call Manager/1.0$", RegexOptions.Multiline);
-        var reError = new Regex(@"^Response: Error\nMessage: (.*)$", RegexOptions.Multiline);
-        var reSuccess = new Regex(@"^Response: Success\n(?:ActionID: .*\n)?Message: (.*)$", RegexOptions.Multiline);
-        var reXstat = new Regex(@"^(?:ActionID: (.*)\n)?Response: Success\nNode: (.*)\n(?:Conn: (\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*\n)*(?:LinkedNodes: (.*))*\n(?:Var: RPT_TXKEYED=(.*)\n)*(?:Var: RPT_NUMLINKS=(.*)\n)?(?:Var: RPT_LINKS=(.*)\n)?(?:Var: RPT_NUMALINKS=(.*)\n)?(?:Var: RPT_ALINKS=(.*)\n)?(?:Var: RPT_RXKEYED=(.*)\n)?(?:Var: RPT_AUTOPATCHUP=(.*)\n)?(?:Var: RPT_ETXKEYED=(.*)\n)?(?:Var: TRANSFERCAPABILITY=(.*)\n)?(?:parrot_ena: (.*)\n)?(?:sys_ena: (.*)\n)?(?:tot_ena: (.*)\n)?(?:link_ena: (.*)\n)?(?:patch_ena: (.*)\n)?(?:patch_state: (.*)\n)?(?:sch_ena: (.*)\n)?(?:user_funs: (.*)\n)?(?:tail_type: (.*)\n)?(?:iconns: (.*)\n)?(?:tot_state: (.*)\n)?(?:ider_state: (.*)\n)?(?:tel_mode: (.*)\n)?", RegexOptions.Multiline);
-        var reRptLinks = new Regex(@"^Event: (?:RPT_ALINKS|RPT_NUMALINKS|RPT_LINKS|RPT_NUMLINKS|RPT_TXKEYED)\n(?:Privilege: (.*)\n)(?:Node: (.*)\n)(?:Channel: (.*)\n)(?:EventValue: (.*)\n)(?:LastKeyedTime: (.*)\n)\n(?:LastTxKeyedTime: (.*)\n)", RegexOptions.Multiline);
-        var reNewChannel = new Regex(@"^Event: Newchannel\n(?:Privilege: (.*)\n)(?:Channel: (.*)\n)(?:State: (.*)\n)(?:CallerIDNum: (.*)\n)(?:CallerIDName: (.*)\n)(?:Uniqueid: (.*)\n)", RegexOptions.Multiline);
-        var reHangup = new Regex(@"^Event: Hangup\n(?:Privilege: (.*)\n)(?:Channel: (.*)\n)(?:Uniqueid: (.*)\n)(?:Cause: (.*)\n)(?:Cause-txt: (.*)\n)", RegexOptions.Multiline);
+        var welcomeRegex = new Regex(@"^Asterisk Call Manager/1.0\s*$", RegexOptions.Multiline);
+        var errorRegex = new Regex(@"^Response: Error\r?\nMessage: (.*)$", RegexOptions.Multiline);
+        var successRegex = new Regex(@"^Response: Success\r?\n(?:ActionID: .*\r?\n)?Message: (.*)$", RegexOptions.Multiline);
+        var xStatRegex = new Regex(@"
+^(?:ActionID:\s(.*)\n)?
+Response:\sSuccess\n
+Node:\s(.*)\n
+(?:(?:Conn:\s.*\n)+)?
+(?:LinkedNodes:\s(.*))?\n
+(?:Var:\sRPT_TXKEYED=(.*)\n)?
+(?:Var:\sRPT_NUMLINKS=(.*)\n)?
+(?:Var:\sRPT_LINKS=(.*)\n)?
+(?:Var:\sRPT_NUMALINKS=(.*)\n)?
+(?:Var:\sRPT_ALINKS=(.*)\n)?
+(?:Var:\sRPT_RXKEYED=(.*)\n)?
+(?:Var:\sRPT_AUTOPATCHUP=(.*)\n)?
+(?:Var:\sRPT_ETXKEYED=(.*)\n)?
+(?:Var:\sTRANSFERCAPABILITY=(.*)\n)?
+(?:parrot_ena:\s(.*)\n)?
+(?:sys_ena:\s(.*)\n)?
+(?:tot_ena:\s(.*)\n)?
+(?:link_ena:\s(.*)\n)?
+(?:patch_ena:\s(.*)\n)?
+(?:patch_state:\s(.*)\n)?
+(?:sch_ena:\s(.*)\n)?
+(?:user_funs:\s(.*)\n)?
+(?:tail_type:\s(.*)\n)?
+(?:iconns:\s(.*)\n)?
+(?:tot_state:\s(.*)\n)?
+(?:ider_state:\s(.*)\n)?
+(?:tel_mode:\s(.*)\n)?
+",
+RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace);
+
+        var rptLinksRegex = new Regex(@"^Event: (?:RPT_ALINKS|RPT_NUMALINKS|RPT_LINKS|RPT_NUMLINKS|RPT_TXKEYED)\r?\n(?:Privilege: (.*)\r?\n)(?:Node: (.*)\r?\n)(?:Channel: (.*)\r?\n)(?:EventValue: (.*)\r?\n)(?:LastKeyedTime: (.*)\r?\n)\r?\n(?:LastTxKeyedTime: (.*)\n)", RegexOptions.Multiline);
+        var newChannelRegex = new Regex(@"^Event: Newchannel\r?\n(?:Privilege: (.*)\r?\n)(?:Channel: (.*)\r?\n)(?:State: (.*)\r?\n)(?:CallerIDNum: (.*)\r?\n)(?:CallerIDName: (.*)\r?\n)(?:Uniqueid: (.*)\r?\n)", RegexOptions.Multiline);
+        var hangupRegex = new Regex(@"^Event: Hangup\r?\n(?:Privilege: (.*)\r?\n)(?:Channel: (.*)\r?\n)(?:Uniqueid: (.*)\r?\n)(?:Cause: (.*)\r?\n)(?:Cause-txt: (.*)\r?\n)", RegexOptions.Multiline);
         List<Regex> regexList = new List<Regex>
         {
-            reWelcome,
-            reError,
-            reSuccess,
-            reXstat,
-            reRptLinks,
-            reNewChannel,
-            reHangup
+            welcomeRegex,
+            errorRegex,
+            successRegex,
+            xStatRegex,
+            rptLinksRegex,
+            newChannelRegex,
+            hangupRegex
         };
+        var connLineRegex = new Regex(@"^Conn:\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$", RegexOptions.Multiline);
 
-        
+
         foreach (var regex in regexList)
         {
-            var match = regex.Match(rawMessage);
+            var match = regex.Match(normalizedMessage);
             if (match.Success)
             {
                 // Handle the matched response
                 switch (regex)
                 {
-                    case var _ when regex == reWelcome:
+                    case var _ when regex == welcomeRegex:
                         ConsoleHelper.Write(rawMessage, "", ConsoleColor.Green);
-                        break;
-                    case var _ when regex == reError:
-                        ConsoleHelper.Write($"Error: {match.Groups[1].Value}", "", ConsoleColor.Red);
-                        break;
-                    case var _ when regex == reSuccess:
+                        return;
+                    case var _ when regex == errorRegex:
+                        if (match.Groups[1].Value != "Missing action in request")
+                            ConsoleHelper.Write($"Error: {match.Groups[1].Value}", "", ConsoleColor.Red);
+                        return;
+                    case var _ when regex == successRegex:
                         ConsoleHelper.Write($"Success: {match.Groups[1].Value}", "* ", ConsoleColor.Green);
-                        break;
-                    case var _ when regex == reXstat:
-                        var nodeNumber = match.Groups[2].Value;
-                        var connection = AllstarConnection.FindOrCreate(nodeNumber, AllstarConnections);
+                        return;
+                    case var _ when regex == xStatRegex:
+                        // Populate connection metadata if needed later
 
-                        //connection.IpAddress = value.Substring(10, 20).Trim();
-                        //connection.SomeNumber = value.Substring(30, 12).Trim();
-                        //connection.Direction = value.Substring(42, 11).Trim();
-                        //connection.TimeSpanConnected = value.Substring(53, 20).Trim();
-                        //connection.Status = value.Substring(73, 20).Trim();
-                        //connection.Type = "Direct";
-                        break;
-                    case var _ when regex == reRptLinks:
+                        // Process direct connections
+                        var connMatches = connLineRegex.Matches(normalizedMessage);
+                        foreach (Match cm in connMatches)
+                        {
+                            var connection = AllstarConnection.FindOrCreate(cm.Groups[1].Value, AllstarConnections);
+                            connection.IpAddress = cm.Groups[2].Value;
+                            connection.SomeNumber = cm.Groups[3].Value;
+                            connection.Direction = cm.Groups[4].Value;
+                            connection.TimeSpanConnected = cm.Groups[5].Value;
+                            connection.Status = cm.Groups[6].Value;
+                            connection.Type = "Direct";
+                        }
+
+                        // Process linked nodes
+                        var arrLinkedNodes = match.Groups[3].Value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var node in arrLinkedNodes)
+                        {
+                            var connection = AllstarConnection.FindOrCreate(node.Trim().Substring(1), AllstarConnections);
+                            connection.Node = node.Trim().Substring(1);
+                            connection.Type = "Linked";
+                            connection.Status = node.Trim().Substring(0, 1) == "R" ? "Monitoring" : "Established";
+                        }
+
+                        ConsoleHelper.Write(rawMessage, "", ConsoleColor.Green);
+                        return;
+                    case var _ when regex == rptLinksRegex:
                         // Handle RPT_LINKS event
+                        ConsoleHelper.Write("Handle RPT_LINKS event", "", ConsoleColor.Gray);
                         break;
-                    case var _ when regex == reNewChannel:
+                    case var _ when regex == newChannelRegex:
                         // Handle Newchannel event
+                        ConsoleHelper.Write("Handle Newchannel event", "", ConsoleColor.Gray);
                         break;
-                    case var _ when regex == reHangup:
+                    case var _ when regex == hangupRegex:
                         // Handle Hangup event
+                        ConsoleHelper.Write("Handle Hangup event", "", ConsoleColor.Gray);
                         break;
                 }
             }
         }
+
+        // Display non-visible characters
+        rawMessage = string.Concat(normalizedMessage.Select(c => char.IsControl(c) ? $"\\x{(int)c:X2}" : c.ToString()));
+
+        ConsoleHelper.Write($"{Environment.NewLine}** No match for raw message ***********{Environment.NewLine}{Environment.NewLine}{normalizedMessage}{Environment.NewLine}", "", ConsoleColor.Yellow);
 
         //var regex = new Regex(@"(?<=^|\r\n)(Response|ActionID|Message|Node|Conn|LinkedNodes|RPT_LINKS):\s*(.*?)\r?\n", RegexOptions.Multiline);
         //foreach (Match match in regex.Matches(rawMessage))
