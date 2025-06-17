@@ -3,7 +3,7 @@
     public class AllstarLinkStatsRootNode
     {
         public Stats stats { get; set; }
-        public Node node { get; set; }
+        public AllstarLinkStatsNode node { get; set; }
         public List<object> keyups { get; set; }
         public double time { get; set; }
     }
@@ -23,10 +23,10 @@
         public string nodes { get; set; }
         public string totalkerchunks { get; set; }
         public string keytime { get; set; }
-        public List<LinkedNode> linkedNodes { get; set; }
+        public List<AllstarLinkStatsNode> linkedNodes { get; set; }
     }
 
-    public class LinkedNode
+    public class AllstarLinkStatsNode
     {
         public int Node_ID { get; set; }
         public string User_ID { get; set; }
@@ -48,30 +48,7 @@
         public string reghostname { get; set; }
         public string is_nnx { get; set; }
         public Server server { get; set; }
-    }
-
-    public class Node
-    {
-        public int Node_ID { get; set; }
-        public string User_ID { get; set; }
-        public string Status { get; set; }
-        public string name { get; set; }
-        public string ipaddr { get; set; }
-        public int port { get; set; }
-        public int regseconds { get; set; }
-        public string iptime { get; set; }
-        public string node_frequency { get; set; }
-        public string node_tone { get; set; }
-        public bool node_remotebase { get; set; }
-        public string node_freqagile { get; set; }
-        public string callsign { get; set; }
-        public string access_reverseautopatch { get; set; }
-        public string access_telephoneportal { get; set; }
-        public string access_webtransceiver { get; set; }
-        public string access_functionlist { get; set; }
-        public string reghostname { get; set; }
-        public string is_nnx { get; set; }
-        public Server server { get; set; }
+        public List<AllstarLinkStatsNode> LinkedNodes { get; set; } = new List<AllstarLinkStatsNode>();
     }
 
     public class Server
@@ -96,30 +73,6 @@
         public Data data { get; set; }
         public DateTime created_at { get; set; }
         public DateTime updated_at { get; set; }
-        public UserNode user_node { get; set; }
-    }
-
-    public class UserNode
-    {
-        public int Node_ID { get; set; }
-        public string User_ID { get; set; }
-        public string Status { get; set; }
-        public string name { get; set; }
-        public string ipaddr { get; set; }
-        public int port { get; set; }
-        public int regseconds { get; set; }
-        public string iptime { get; set; }
-        public string node_frequency { get; set; }
-        public string node_tone { get; set; }
-        public bool node_remotebase { get; set; }
-        public string node_freqagile { get; set; }
-        public string callsign { get; set; }
-        public string access_reverseautopatch { get; set; }
-        public string access_telephoneportal { get; set; }
-        public string access_webtransceiver { get; set; }
-        public string access_functionlist { get; set; }
-        public string reghostname { get; set; }
-        public string is_nnx { get; set; }
-        public Server server { get; set; }
+        public AllstarLinkStatsNode user_node { get; set; }
     }
 }

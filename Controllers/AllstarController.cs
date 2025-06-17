@@ -13,7 +13,6 @@ namespace AsteriskAMIStream.Controllers
     public class AllstarController : Controller
     {
         private static List<AllstarClient> _allstarClients = new();
-        private static List<AllstarLinkClient> _allstarLinkClients = new();
         private readonly List<AMISettings> _amiSettingsList;
 
         public AllstarController(IConfiguration configuration)
@@ -31,13 +30,6 @@ namespace AsteriskAMIStream.Controllers
                         settings.Username,
                         settings.Password,
                         settings.NodeNumber
-                    ));
-                }
-
-                foreach (var settings in _amiSettingsList)
-                {
-                    _allstarLinkClients.Add(new AllstarLinkClient(
-                        int.Parse(settings.NodeNumber)
                     ));
                 }
             }
@@ -65,16 +57,21 @@ namespace AsteriskAMIStream.Controllers
         }
 
         [HttpGet("asl")]
-        public async Task<ActionResult<List<AllstarLinkStatsRootNode>>> GetAslNodeStatus()
+        public async Task<ActionResult<List<AllstarLinkStatsNode>>> GetAslNodeStatus([FromQuery] int node = 65017)
         {
-            var allRootNodes = new List<AllstarLinkStatsRootNode>();
+            var allRootNodes = new List<AllstarLinkStatsNode>();
 
-            foreach (var client in _allstarLinkClients)
+            if (node >= 2000)
             {
-                AllstarLinkStatsRootNode root = await client.GetNodeInfoAsync();
-                allRootNodes.Add(root);
+                AllstarLinkStatsNode? allstarLinkStatsNode = await AllstarLinkClient.GetNodeInfoAsync(node);
+
+                if (allstarLinkStatsNode != null)
+                {
+                    allRootNodes.Add(allstarLinkStatsNode);
+                }
             }
 
+            AllstarLinkClient.ClearProcessedNodes();
             return Ok(allRootNodes);
         }
     }
