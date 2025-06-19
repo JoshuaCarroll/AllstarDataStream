@@ -1,4 +1,4 @@
-﻿namespace AsteriskAMIStream.Models
+﻿namespace AsteriskDataStream.Models
 {
     public static class ConsoleHelper
     {

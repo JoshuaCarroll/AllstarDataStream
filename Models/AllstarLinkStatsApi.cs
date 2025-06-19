@@ -1,9 +1,9 @@
-﻿namespace AsteriskAMIStream.Models
+﻿namespace AsteriskDataStream.Models.AllstarLinkStatsApi
 {
-    public class AllstarLinkStatsRootNode
+    public class RootNode
     {
         public Stats stats { get; set; }
-        public AllstarLinkStatsNode node { get; set; }
+        public Node node { get; set; }
         public List<object> keyups { get; set; }
         public double time { get; set; }
     }
@@ -23,10 +23,10 @@
         public string nodes { get; set; }
         public string totalkerchunks { get; set; }
         public string keytime { get; set; }
-        public List<AllstarLinkStatsNode> linkedNodes { get; set; }
+        public List<Node> linkedNodes { get; set; }
     }
 
-    public class AllstarLinkStatsNode
+    public class Node
     {
         public int Node_ID { get; set; }
         public string User_ID { get; set; }
@@ -48,7 +48,8 @@
         public string reghostname { get; set; }
         public string is_nnx { get; set; }
         public Server server { get; set; }
-        public List<AllstarLinkStatsNode> LinkedNodes { get; set; } = new List<AllstarLinkStatsNode>();
+        public Data data { get; set; }
+        public DateTime Timestamp { get; set; }
     }
 
     public class Server
@@ -73,6 +74,6 @@
         public Data data { get; set; }
         public DateTime created_at { get; set; }
         public DateTime updated_at { get; set; }
-        public AllstarLinkStatsNode user_node { get; set; }
+        public Node user_node { get; set; }
     }
 }

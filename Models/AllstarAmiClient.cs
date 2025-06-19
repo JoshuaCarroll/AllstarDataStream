@@ -1,12 +1,12 @@
-﻿using AsteriskAMIStream.Models;
-using AsteriskAMIStream.Services;
+﻿using AsteriskDataStream.Models;
+using AsteriskDataStream.Services;
 using Newtonsoft.Json.Linq;
 using System.Collections.Concurrent;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
 
-public class AllstarClient
+public class AllstarAmiClient
 {
     private TcpClient tcpClient;
     private NetworkStream? stream;
@@ -26,7 +26,7 @@ public class AllstarClient
     public List<AllstarConnection> AllstarConnections { get; set; }
     public string ActionID => $"{Interlocked.Increment(ref _actionId)}"; // Thread-safe increment for action ID
 
-    public AllstarClient(string amiHost, int amiPort, string amiUsername, string amiPassword, string nodeNumber)
+    public AllstarAmiClient(string amiHost, int amiPort, string amiUsername, string amiPassword, string nodeNumber)
     {
         this.amiHost = amiHost;
         this.amiPort = amiPort;

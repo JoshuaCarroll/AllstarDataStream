@@ -3,13 +3,13 @@ using System.IO;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 
-namespace AsteriskAMIStream.Services
+namespace AsteriskDataStream.Services
 {
     using System.Net.Http;
     using System.IO;
     using Newtonsoft.Json;
     using System.Collections.Generic;
-    using AsteriskAMIStream.Models;
+    using AsteriskDataStream.Models;
 
     public class NodeMetadata
     {

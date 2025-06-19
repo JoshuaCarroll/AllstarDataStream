@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
 
-namespace AsteriskAMIStream.Controllers
+namespace AsteriskDataStream.Controllers
 {
     [Route("/")]
     public class HomeController : Controller

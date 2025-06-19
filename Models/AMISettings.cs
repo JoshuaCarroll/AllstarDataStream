@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
 
-namespace AsteriskAMIStream.Models
+namespace AsteriskDataStream.Models
 {
     public class AMISettings
     {

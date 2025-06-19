@@ -1,4 +1,4 @@
-﻿using AsteriskAMIStream.Models;
+﻿using AsteriskDataStream.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using System;
@@ -6,13 +6,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace AsteriskAMIStream.Controllers
+namespace AsteriskDataStream.Controllers
 {
     [Route("api")]
     [ApiController]
     public class AllstarController : Controller
     {
-        private static List<AllstarClient> _allstarClients = new();
+        private static List<AllstarAmiClient> _allstarClients = new();
         private readonly List<AMISettings> _amiSettingsList;
 
         public AllstarController(IConfiguration configuration)
@@ -24,7 +24,7 @@ namespace AsteriskAMIStream.Controllers
             {
                 foreach (var settings in _amiSettingsList)
                 {
-                    _allstarClients.Add(new AllstarClient(
+                    _allstarClients.Add(new AllstarAmiClient(
                         settings.Host,
                         settings.Port,
                         settings.Username,
@@ -57,22 +57,16 @@ namespace AsteriskAMIStream.Controllers
         }
 
         [HttpGet("asl")]
-        public async Task<ActionResult<List<AllstarLinkStatsNode>>> GetAslNodeStatus([FromQuery] int node = 65017)
+        public async Task<ActionResult<List<Models.AllstarLinkStatsApi.Node>>> GetAslNodeStatus([FromQuery] int node = 65017)
         {
-            var allRootNodes = new List<AllstarLinkStatsNode>();
+            AllstarLinkClient.NodeDictionary.ClearExpired();
 
             if (node >= 2000)
             {
-                AllstarLinkStatsNode? allstarLinkStatsNode = await AllstarLinkClient.GetNodeInfoAsync(node);
-
-                if (allstarLinkStatsNode != null)
-                {
-                    allRootNodes.Add(allstarLinkStatsNode);
-                }
+                await AllstarLinkClient.GetNodeInfoAsync(node);
             }
 
-            AllstarLinkClient.ClearProcessedNodes();
-            return Ok(allRootNodes);
+            return Ok(AllstarLinkClient.NodeDictionary);
         }
     }
 }

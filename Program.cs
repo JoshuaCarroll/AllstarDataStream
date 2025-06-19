@@ -1,4 +1,4 @@
-using AsteriskAMIStream.Models;
+using AsteriskDataStream.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -73,7 +73,7 @@ builder.WebHost.ConfigureKestrel((context, options) =>
 var app = builder.Build();
 
 // Load node metadata
-await AsteriskAMIStream.Services.MetadataService.DownloadAndCacheMetadata();
+await AsteriskDataStream.Services.MetadataService.DownloadAndCacheMetadata();
 
 app.UseCors(corsPolicyName);
 
