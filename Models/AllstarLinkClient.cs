@@ -1,4 +1,5 @@
 ﻿using AsteriskDataStream.Models.AllstarLinkStatsApi;
+using HtmlAgilityPack;
 using System.Collections.Concurrent;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -118,6 +119,33 @@ namespace AsteriskDataStream.Models
 
             return returnNode;
         }
+
+        public static async Task<List<string>> GetNodesTransmittingAsync()
+        {
+            List<string> keyedNodes = new();
+
+            try
+            {
+                using var httpClient = new HttpClient();
+                var html = await httpClient.GetStringAsync("https://stats.allstarlink.org/stats/keyed");
+
+                var htmlDoc = new HtmlDocument();
+                htmlDoc.LoadHtml(html);
+
+                keyedNodes = htmlDoc.DocumentNode
+                    .SelectNodes("//table//tr/td[1]/a")
+                    ?.Select(li => li.InnerText.Trim())
+                    .ToList() ?? new List<string>();
+
+                keyedNodes = NodeDictionary.ContainsAny(keyedNodes);
+            }
+            catch (Exception ex)
+            {
+                ConsoleHelper.Write($"Exception: {ex.Message}", "", ConsoleColor.Red);
+            }
+
+            return keyedNodes;
+        }
     }
 
     public class NodeDictionary : ConcurrentDictionary<string, AllstarLinkStatsApi.Node?>
@@ -129,7 +157,7 @@ namespace AsteriskDataStream.Models
         /// <returns>Returns false if already exists</returns>
         public new bool TryAdd(string nodeName, AllstarLinkStatsApi.Node? node)
         {
-            if (base.ContainsKey(nodeName))
+            if (ContainsKey(nodeName))
             {
                 return false; // Node already exists
             }
@@ -140,14 +168,29 @@ namespace AsteriskDataStream.Models
         {
             var threshold = DateTime.UtcNow.AddMinutes(AllstarLinkClient.CacheExpirationMinutes * -1);
 
-            foreach (var kvp in this.ToArray())
+            foreach (var kvp in ToArray())
             {
                 var node = kvp.Value;
                 if (node != null && node.Timestamp < threshold)
                 {
-                    this.TryRemove(kvp.Key, out _);
+                    TryRemove(kvp.Key, out _);
                 }
             }
+        }
+
+        public List<string> ContainsAny(List<string> listIn)
+        {
+            List<string> listOut = new();
+
+            foreach (var s in listIn)
+            {
+                if (ContainsKey(s))
+                {
+                    listOut.Add(s);
+                }
+            }
+
+            return listOut;
         }
     }
 }

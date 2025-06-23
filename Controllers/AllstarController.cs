@@ -1,4 +1,5 @@
 ﻿using AsteriskDataStream.Models;
+using HtmlAgilityPack;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using System;
@@ -36,6 +37,12 @@ namespace AsteriskDataStream.Controllers
         }
 
         [HttpGet("")]
+        public async Task<ActionResult<List<AllstarConnection>>> Index()
+        {
+            return Ok();
+        }
+
+        [HttpGet("ami")]
         public async Task<ActionResult<List<AllstarConnection>>> GetNodes()
         {
             var allConnections = new List<AllstarConnection>();
@@ -67,6 +74,19 @@ namespace AsteriskDataStream.Controllers
             }
 
             return Ok(AllstarLinkClient.NodeDictionary);
+        }
+
+        [HttpGet("transmitting")]
+        public async Task<ActionResult<List<Models.AllstarLinkStatsApi.Node>>> GetNodesTransmitting()
+        {
+            if (AllstarLinkClient.NodeDictionary.Count == 0)
+            {
+                await GetAslNodeStatus();
+            }
+
+            var keyedNodes = await AllstarLinkClient.GetNodesTransmittingAsync();
+
+            return Ok(keyedNodes);
         }
     }
 }
