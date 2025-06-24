@@ -18,8 +18,15 @@ namespace AsteriskDataStream.Models
 
         public static async Task LoadNodeNetworkAsync(int rootNodeNumber)
         {
+            ConsoleHelper.Write($"Loading AllstarLink network starting from node {rootNodeNumber}.", "", ConsoleColor.Green);
+
             // If the root node number is less than 2000, then it hasn't yet been set.
             rootNodeNumber = _rootNodeNumber > 0 ? _rootNodeNumber : rootNodeNumber;
+
+            if (rootNodeNumber < 2000)
+            {
+                return; // Exit if the root node number is invalid
+            }
 
             Node? rootNode = null;
 
