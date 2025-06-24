@@ -1,4 +1,5 @@
 using AsteriskDataStream.Models;
+using AsteriskDataStream.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -64,6 +65,7 @@ builder.Configuration
 
 // Register services
 builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
+builder.Services.AddHostedService<AutomatedTasksService>();
 
 builder.WebHost.ConfigureKestrel((context, options) =>
 {
@@ -73,7 +75,7 @@ builder.WebHost.ConfigureKestrel((context, options) =>
 var app = builder.Build();
 
 // Load node metadata
-await AsteriskDataStream.Services.MetadataService.DownloadAndCacheMetadata();
+// await AsteriskDataStream.Services.MetadataService.DownloadAndCacheMetadata();
 
 app.UseCors(corsPolicyName);
 

@@ -37,7 +37,7 @@ namespace AsteriskDataStream.Controllers
         }
 
         [HttpGet("")]
-        public async Task<ActionResult<List<AllstarConnection>>> Index()
+        public ActionResult<List<AllstarConnection>> Index()
         {
             return Ok();
         }
@@ -70,7 +70,7 @@ namespace AsteriskDataStream.Controllers
 
             if (node >= 2000)
             {
-                await AllstarLinkClient.GetNodeInfoAsync(node);
+                await AllstarLinkClient.LoadNodeNetworkAsync(node);
             }
 
             return Ok(AllstarLinkClient.NodeDictionary);
