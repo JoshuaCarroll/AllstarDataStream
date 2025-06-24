@@ -12,80 +12,66 @@ namespace AsteriskDataStream.Models
 {
     public static class AllstarLinkClient
     {
+        public static readonly NodeDictionary NodeDictionary = new();
         public static readonly int CacheExpirationMinutes = 5; // Set the cache expiration time in minutes for each node's information
         private static int _rootNodeNumber = 0; // Default root node number to start the network loading
-
-        public static readonly NodeDictionary NodeDictionary = new();
-        private static readonly SemaphoreSlim Semaphore = new(5); // Allow up to 5 concurrent downloads
-        private static readonly ConcurrentDictionary<int, bool> VisitedNodes = new();
-
 
         public static async Task LoadNodeNetworkAsync(int rootNodeNumber)
         {
             ConsoleHelper.Write($"Loading AllstarLink network starting from node {rootNodeNumber}.", "", ConsoleColor.Green);
 
+            // If the root node number is less than 2000, then it hasn't yet been set.
+            rootNodeNumber = _rootNodeNumber > 0 ? _rootNodeNumber : rootNodeNumber;
+
             if (rootNodeNumber < 2000)
-                return;
-
-            var queue = new Queue<int>();
-            queue.Enqueue(rootNodeNumber);
-
-            while (queue.Count > 0)
             {
-                int currentNode = queue.Dequeue();
+                return; // Exit if the root node number is invalid
+            }
 
-                // Prevent reprocessing
-                if (!VisitedNodes.TryAdd(currentNode, true))
-                    continue;
+            Node? rootNode = null;
 
-                try
+            if (NodeDictionary.TryAdd(rootNodeNumber.ToString(), null))
+            {
+                rootNode = await DownloadNodeInfoAsync(rootNodeNumber);
+
+                if (rootNode != null)
                 {
-                    await Semaphore.WaitAsync();
+                    NodeDictionary.TryUpdate(rootNode.name, rootNode, null);
+                }
+            }
+            else
+            {
+                rootNode = NodeDictionary.GetValueOrDefault(rootNodeNumber.ToString());
+            }
 
-                    Node? node = await DownloadNodeInfoAsync(currentNode);
-
-                    if (node != null)
+            if (rootNode != null)
+            {
+                // If the root node has linked nodes, download their information
+                foreach (var linked in rootNode.data?.linkedNodes ?? Enumerable.Empty<Node>())
+                {
+                    if (!ApiRateLimiter.CanContinue)
                     {
-                        NodeDictionary.TryAdd(node.name, node);
-
-                        foreach (var linked in node.data?.linkedNodes ?? Enumerable.Empty<Node>())
-                        {
-                            if (int.TryParse(linked.name, out int linkedNodeNumber) && linkedNodeNumber >= 2000)
-                            {
-                                if (!VisitedNodes.ContainsKey(linkedNodeNumber))
-                                {
-                                    queue.Enqueue(linkedNodeNumber);
-                                }
-                            }
-                            else
-                            {
-                                // Non-Allstar or private nodes
-                                var nonAllstarNode = new Node
-                                {
-                                    name = linked.name,
-                                    node_frequency = "Direct / Private",
-                                    Timestamp = DateTime.UtcNow
-                                };
-
-                                NodeDictionary.TryAdd(linked.name, nonAllstarNode);
-                            }
-                        }
+                        return; // Exit if the API rate limit has been reached
                     }
-                }
-                finally
-                {
-                    Semaphore.Release();
-                }
 
-                // Respect rate limits
-                if (!ApiRateLimiter.CanContinue)
-                {
-                    ConsoleHelper.Write("API Rate limit reached. Pausing network load.", "", ConsoleColor.Yellow);
-                    break;
+                    if (int.TryParse(linked.name, out int linkedNodeNumber) && linkedNodeNumber >= 2000)
+                    {
+                        await LoadNodeNetworkAsync(linkedNodeNumber);
+                    }
+                    else
+                    {
+                        Node nonAllstarNode = new Node
+                        {
+                            name = linked.name,
+                            node_frequency = "Direct / Private",
+                            Timestamp = DateTime.UtcNow
+                        };
+
+                        NodeDictionary.TryAdd(linked.name, nonAllstarNode);
+                    }
                 }
             }
         }
-
 
         private static async Task<Node?> DownloadNodeInfoAsync(int _nodeNumber)
         {
