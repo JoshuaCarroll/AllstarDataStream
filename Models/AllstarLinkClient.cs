@@ -17,7 +17,6 @@ namespace AsteriskDataStream.Models
         public static readonly NodeDictionary NodeDictionary = new();
         public static int InitialRootNodeNumber = 0; 
         private static readonly SemaphoreSlim Semaphore = new(1); // Allow up to N concurrent downloads
-        public static bool IsProcessing = false;
 
         public static async Task LoadNodeNetworkAsync(int rootNodeNumber, bool isInitialCall = false)
         {

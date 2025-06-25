@@ -66,14 +66,10 @@ namespace AsteriskDataStream.Controllers
         [HttpGet("asl")]
         public async Task<ActionResult<List<Models.AllstarLinkStatsApi.Node>>> GetAslNodeStatus([FromQuery] int node = 65017)
         {
-            AllstarLinkClient.IsProcessing = true;
-
             if (node >= 2000)
             {
                 await AllstarLinkClient.LoadNodeNetworkAsync(node, true);
             }
-
-            AllstarLinkClient.IsProcessing = false;
 
             return Ok(AllstarLinkClient.NodeDictionary);
         }
