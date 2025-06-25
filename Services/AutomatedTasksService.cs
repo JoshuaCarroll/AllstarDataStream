@@ -34,11 +34,25 @@ namespace AsteriskDataStream.Services
 
         public void AutomatedTasks()
         {
-            AllstarLinkClient.NodeDictionary.ClearExpired();
-            ApiRateLimiter.RemoveExpired();
-            AllstarLinkClient.LoadNodeNetworkAsync(0).GetAwaiter().GetResult();
+            if (!AllstarLinkClient.IsProcessing)
+            {
+                AllstarLinkClient.IsProcessing = true;
 
-            ConsoleHelper.Write(".", "", ConsoleColor.Gray, ConsoleColor.Black, false);
+                // Clear expired nodes and rate limiter
+                AllstarLinkClient.NodeDictionary.ClearExpired();
+                ApiRateLimiter.RemoveExpired();
+
+                // Load any null nodes - they haven't loaded yet
+                AllstarLinkClient.LoadNodeNetworkAsync(AllstarLinkClient.InitialRootNodeNumber).GetAwaiter();
+
+                AllstarLinkClient.IsProcessing = false;
+
+                ConsoleHelper.Write(".", "", ConsoleColor.Gray, ConsoleColor.Black, false);
+            }
+            else
+            {
+                ConsoleHelper.Write(".", "", ConsoleColor.DarkGray, ConsoleColor.Black, false);
+            }
         }
     }
 }

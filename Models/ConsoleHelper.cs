@@ -14,7 +14,7 @@
 
             if (includeCrLf)
             {
-                Console.Write($"\r\n{ outputString}");
+                Console.Write($"\r\n{outputString}  ");
             } else {
                 Console.Write(outputString);
             }

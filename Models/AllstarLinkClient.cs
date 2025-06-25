@@ -12,63 +12,78 @@ namespace AsteriskDataStream.Models
 {
     public static class AllstarLinkClient
     {
+        public static readonly int CacheExpirationMinutes = 10; // Set the cache expiration time in minutes for each node's information
+
         public static readonly NodeDictionary NodeDictionary = new();
-        public static readonly int CacheExpirationMinutes = 5; // Set the cache expiration time in minutes for each node's information
-        private static int _rootNodeNumber = 0; // Default root node number to start the network loading
+        public static int InitialRootNodeNumber = 0; 
+        private static readonly SemaphoreSlim Semaphore = new(1); // Allow up to N concurrent downloads
+        public static bool IsProcessing = false;
 
-        public static async Task LoadNodeNetworkAsync(int rootNodeNumber)
+        public static async Task LoadNodeNetworkAsync(int rootNodeNumber, bool isInitialCall = false)
         {
-            ConsoleHelper.Write($"Loading AllstarLink network starting from node {rootNodeNumber}.", "", ConsoleColor.Green);
+            if (isInitialCall)
+                InitialRootNodeNumber = rootNodeNumber;
 
-            // If the root node number is less than 2000, then it hasn't yet been set.
-            rootNodeNumber = _rootNodeNumber > 0 ? _rootNodeNumber : rootNodeNumber;
-
-            if (rootNodeNumber < 2000)
+            try
             {
-                return; // Exit if the root node number is invalid
-            }
+                Node? rootNode = await GetOrLoadRootNode(rootNodeNumber);
 
-            Node? rootNode = null;
+                if (rootNode?.data?.linkedNodes == null)
+                    return;
 
-            if (NodeDictionary.TryAdd(rootNodeNumber.ToString(), null))
-            {
-                rootNode = await DownloadNodeInfoAsync(rootNodeNumber);
-
-                if (rootNode != null)
-                {
-                    NodeDictionary.TryUpdate(rootNode.name, rootNode, null);
-                }
-            }
-            else
-            {
-                rootNode = NodeDictionary.GetValueOrDefault(rootNodeNumber.ToString());
-            }
-
-            if (rootNode != null)
-            {
-                // If the root node has linked nodes, download their information
-                foreach (var linked in rootNode.data?.linkedNodes ?? Enumerable.Empty<Node>())
+                foreach (var linked in rootNode.data.linkedNodes)
                 {
                     if (!ApiRateLimiter.CanContinue)
-                    {
-                        return; // Exit if the API rate limit has been reached
-                    }
+                        return;
 
-                    if (int.TryParse(linked.name, out int linkedNodeNumber) && linkedNodeNumber >= 2000)
+                    if (int.TryParse(linked.name, out int linkedNodeNumber) && linkedNodeNumber >= 2000 && linkedNodeNumber <= 999999)
                     {
-                        await LoadNodeNetworkAsync(linkedNodeNumber);
+                        if (NodeDictionary.TryAdd(linked.name, null))
+                            await LoadNodeNetworkAsync(linkedNodeNumber);
                     }
                     else
                     {
-                        Node nonAllstarNode = new Node
+                        if (linkedNodeNumber > 0)
                         {
-                            name = linked.name,
-                            node_frequency = "Direct / Private",
-                            Timestamp = DateTime.UtcNow
-                        };
-
-                        NodeDictionary.TryAdd(linked.name, nonAllstarNode);
+                            NodeDictionary.TryAdd(linked.name, NewNonAllstarNode(linkedNodeNumber));
+                        }
+                        else
+                        {
+                            NodeDictionary.TryAdd(linked.name, NewNonAllstarNode(linked.name));
+                        }
                     }
+                }
+            }
+            catch (Exception ex)
+            {
+                ConsoleHelper.Write($"Exception: {ex.Message}", "", ConsoleColor.Red);
+            }
+
+            // Local function to simplify root node handling
+            static async Task<Node?> GetOrLoadRootNode(int nodeNumber)
+            {
+                if (nodeNumber < 2000)
+                    return NewNonAllstarNode(nodeNumber);
+
+                string key = nodeNumber.ToString();
+
+                if (NodeDictionary.TryAdd(key, null))
+                {
+                    var node = await DownloadNodeInfoAsync(nodeNumber);
+                    if (node != null)
+                        NodeDictionary.TryUpdate(key, node, null);
+                    return node;
+                }
+                else
+                {
+                    var cached = NodeDictionary.GetValueOrDefault(key);
+                    if (cached == null)
+                    {
+                        cached = await DownloadNodeInfoAsync(nodeNumber);
+                        if (cached != null)
+                            NodeDictionary.TryUpdate(key, cached, null);
+                    }
+                    return cached;
                 }
             }
         }
@@ -98,7 +113,12 @@ namespace AsteriskDataStream.Models
                     RootNode rootNode = JsonSerializer.Deserialize<AllstarLinkStatsApi.RootNode>(jsonString)!;
 
                     returnNode = rootNode.node;
-                    returnNode.data = rootNode.stats.data;
+
+                    if (rootNode.stats?.data != null)
+                    {
+                        returnNode.data = rootNode.stats.data;
+                    }
+                    
                     returnNode.Timestamp = DateTime.UtcNow; // Set the timestamp to the current time
                 }
                 else
@@ -106,21 +126,17 @@ namespace AsteriskDataStream.Models
                     switch (response.StatusCode)
                     {
                         case System.Net.HttpStatusCode.TooManyRequests:
-                            ConsoleHelper.Write("HTTP 429: API RATE LIMIT HIT!!", "", ConsoleColor.Yellow);
+                            ConsoleHelper.Write("HTTP 429: API rate limit exceeded", "", ConsoleColor.Yellow);
                             ApiRateLimiter.FillUpQueue();
                             break;
                         case System.Net.HttpStatusCode.NotFound:
-                            ConsoleHelper.Write($"HTTP 404: {response.Content.ToString()}", "", ConsoleColor.Red);
+                            ConsoleHelper.Write($"HTTP 404: {response.ReasonPhrase} ({url})", "", ConsoleColor.Red);
                             break;
                         default:
                             ConsoleHelper.Write($"HTTP Error {response.StatusCode}: {response.ReasonPhrase}", "", ConsoleColor.Red);
                             break;
                     }
                 }
-            }
-            else
-            {
-                ConsoleHelper.Write($"API rate limit exceeded. Skipping node {_nodeNumber}.", "", ConsoleColor.Yellow);
             }
 
             return returnNode;
@@ -167,6 +183,36 @@ namespace AsteriskDataStream.Models
             }
 
             return keyedNodes;
+        }
+
+
+        private static Node NewNonAllstarNode(int nodeNumber)
+        {
+            string nodeDescription = "";
+
+            if (nodeNumber < 2000)
+            {
+                nodeDescription = "Private";
+            }
+            else if (nodeNumber > 999999)
+            {
+                nodeDescription = "Echolink";
+            }
+
+            return NewNonAllstarNode(nodeNumber.ToString(), nodeDescription);
+        }
+
+        private static Node NewNonAllstarNode(string nodeName, string nodeDescription = "")
+        {
+            if (nodeDescription == "")
+                nodeDescription = "Direct";
+
+            return new Node
+            {
+                name = nodeName,
+                node_frequency = nodeDescription,
+                Timestamp = DateTime.UtcNow // Set the timestamp to the current time
+            };
         }
     }
 }
