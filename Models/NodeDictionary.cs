@@ -53,11 +53,11 @@ namespace AsteriskDataStream.Models
             {
                 if (TryRemove(kvp.Key, out _))
                 {
-                    ConsoleHelper.Write($"Node {kvp.Key} has expired. Removing from node dictionary.", "", ConsoleColor.Gray);
+                    ConsoleHelper.Write($"Node {kvp.Key} has expired. Removing from node dictionary.");
                 }
                 else
                 {
-                    ConsoleHelper.Write($"Node {kvp.Key} could not be removed from node dictionary.", "", ConsoleColor.Red);
+                    ConsoleHelper.Write($"Node {kvp.Key} could not be removed from node dictionary.", ConsoleColor.Red);
                 }
             }
         }

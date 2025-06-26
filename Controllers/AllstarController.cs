@@ -66,9 +66,12 @@ namespace AsteriskDataStream.Controllers
         [HttpGet("asl")]
         public async Task<ActionResult<List<Models.AllstarLinkStatsApi.Node>>> GetAslNodeStatus([FromQuery] int node = 65017)
         {
-            if (node >= 2000)
+            if (!AllstarLinkClient.IsLoadingNetwork && ApiRateLimiter.CanContinue)
             {
-                await AllstarLinkClient.LoadNodeNetworkAsync(node, true);
+                if (node >= 2000)
+                {
+                    await AllstarLinkClient.LoadNodeNetworkAsync(node, true);
+                }
             }
 
             return Ok(AllstarLinkClient.NodeDictionary);
@@ -77,12 +80,17 @@ namespace AsteriskDataStream.Controllers
         [HttpGet("transmitting")]
         public async Task<ActionResult<List<Models.AllstarLinkStatsApi.Node>>> GetNodesTransmitting([FromQuery] int node = 65017)
         {
-            if (AllstarLinkClient.NodeDictionary.Count == 0)
-            {
-                await AllstarLinkClient.LoadNodeNetworkAsync(node, true);
-            }
+            List<string> keyedNodes = new();
 
-            var keyedNodes = await AllstarLinkClient.GetNodesTransmittingAsync();
+            if (!AllstarLinkClient.IsLoadingNetwork && ApiRateLimiter.CanContinue)
+            {
+                if (AllstarLinkClient.NodeDictionary.Count == 0)
+                {
+                    await AllstarLinkClient.LoadNodeNetworkAsync(node, true);
+                }
+
+                keyedNodes = await AllstarLinkClient.GetNodesTransmittingAsync();
+            }
 
             return Ok(keyedNodes);
         }

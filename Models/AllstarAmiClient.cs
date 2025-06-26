@@ -45,7 +45,7 @@ public class AllstarAmiClient
         if (tcpClient.Connected)
             return;
 
-        ConsoleHelper.Write($"Connecting to AMI server at {amiHost}:{amiPort}", "* ", ConsoleColor.DarkYellow);
+        ConsoleHelper.Write($"Connecting to AMI server at {amiHost}:{amiPort}", "* ", ConsoleColor.DarkYellow, ConsoleColor.Black, true);
 
         try
         {
@@ -53,18 +53,18 @@ public class AllstarAmiClient
         }
         catch (Exception ex)
         {
-            ConsoleHelper.Write($"Unable to connect to the AMI server ({amiHost}:{amiPort}).", "* ", ConsoleColor.Red);
-            ConsoleHelper.Write(ex.Message, "", ConsoleColor.Red);
+            ConsoleHelper.Write($"Unable to connect to the AMI server ({amiHost}:{amiPort}).", "* ", ConsoleColor.Red, ConsoleColor.Black, true);
+            ConsoleHelper.Write(ex.Message, "", ConsoleColor.Red, ConsoleColor.Black, true);
             return;
         }
 
         if (!tcpClient.Connected)
         {
-            ConsoleHelper.Write("Unable to connect to the AMI server.", "* ", ConsoleColor.Red);
+            ConsoleHelper.Write("Unable to connect to the AMI server.", "* ", ConsoleColor.Red, ConsoleColor.Black, true);
             return;
         }
 
-        ConsoleHelper.Write($"Connected to AMI server at {amiHost}:{amiPort}.", "* ", ConsoleColor.DarkYellow);
+        ConsoleHelper.Write($"Connected to AMI server at {amiHost}:{amiPort}.", "* ", ConsoleColor.DarkYellow, ConsoleColor.Black, true);
 
         stream = tcpClient.GetStream();
         writer = new StreamWriter(stream, Encoding.ASCII) { AutoFlush = true };
@@ -79,12 +79,12 @@ public class AllstarAmiClient
             $"ActionID: {ActionID}";
 
 
-        ConsoleHelper.Write(loginCommand, "", ConsoleColor.Blue);
+        ConsoleHelper.Write(loginCommand, "", ConsoleColor.Blue, ConsoleColor.Black, true);
 
         await writer.WriteLineAsync(loginCommand);
         await writer.FlushAsync();  // <-- critical flush
 
-        ConsoleHelper.Write("Login command sent to AMI server.", "* ", ConsoleColor.DarkYellow);
+        ConsoleHelper.Write("Login command sent to AMI server.", "* ", ConsoleColor.DarkYellow, ConsoleColor.Black, true);
 
         // Start reader loop after successful login
         readerTask = Task.Run(() => ReaderLoopAsync(cancellationTokenSource.Token));
@@ -99,7 +99,7 @@ public class AllstarAmiClient
         {
             if (tcpClient == null || !tcpClient.Connected)
             {
-                ConsoleHelper.Write("TCP client is not connected. Attempting to connect...", "* ", ConsoleColor.DarkYellow);
+                ConsoleHelper.Write("TCP client is not connected. Attempting to connect...", "* ", ConsoleColor.DarkYellow, ConsoleColor.Black, true);
                 await ConnectAsync();
             }
 
@@ -107,7 +107,7 @@ public class AllstarAmiClient
             {
                 command = command.Trim();
 
-                ConsoleHelper.Write(command, "", ConsoleColor.Blue, ConsoleColor.Black);
+                ConsoleHelper.Write(command, "", ConsoleColor.Blue, ConsoleColor.Black, true);
 
                 await writer!.WriteLineAsync("\r\n" + command.Trim() + "\r\n\r\n");
                 await writer.FlushAsync();
@@ -123,7 +123,7 @@ public class AllstarAmiClient
     {
         if (reader == null)
         {
-            ConsoleHelper.Write("StreamReader is null. Cannot start reading responses.", "* ", ConsoleColor.Red);
+            ConsoleHelper.Write("StreamReader is null. Cannot start reading responses.", "* ", ConsoleColor.Red, ConsoleColor.Black, true);
             return;
         }
 
@@ -136,7 +136,7 @@ public class AllstarAmiClient
 
                 if (line == null)
                 {
-                    ConsoleHelper.Write("Stream closed by server.", "* ", ConsoleColor.Red);
+                    ConsoleHelper.Write("Stream closed by server.", "* ", ConsoleColor.Red, ConsoleColor.Black, true);
                     break;
                 }
                 else if (line == string.Empty)
@@ -158,7 +158,7 @@ public class AllstarAmiClient
         }
         catch (Exception ex)
         {
-            ConsoleHelper.Write($"Reader loop exception: {ex.GetType().Name}: {ex.Message}", "* ", ConsoleColor.Red);
+            ConsoleHelper.Write($"Reader loop exception: {ex.GetType().Name}: {ex.Message}", "* ", ConsoleColor.Red, ConsoleColor.Black, true);
         }
     }
 
@@ -243,14 +243,14 @@ RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace);
                 switch (regex)
                 {
                     case var _ when regex == welcomeRegex:
-                        ConsoleHelper.Write(rawMessage, "", ConsoleColor.Green);
+                        ConsoleHelper.Write(rawMessage, "", ConsoleColor.Green, ConsoleColor.Black, true);
                         return;
                     case var _ when regex == errorRegex:
                         if (match.Groups[1].Value != "Missing action in request")
-                            ConsoleHelper.Write($"Error: {match.Groups[1].Value}", "", ConsoleColor.Red);
+                            ConsoleHelper.Write($"Error: {match.Groups[1].Value}", "", ConsoleColor.Red, ConsoleColor.Black, true);
                         return;
                     case var _ when regex == successRegex:
-                        ConsoleHelper.Write($"Success: {match.Groups[1].Value}", "* ", ConsoleColor.Green);
+                        ConsoleHelper.Write($"Success: {match.Groups[1].Value}", "* ", ConsoleColor.Green, ConsoleColor.Black, true);
                         return;
                     case var _ when regex == xStatRegex:
                         // Populate connection metadata if needed later
@@ -278,19 +278,19 @@ RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace);
                             connection.Status = node.Trim().Substring(0, 1) == "R" ? "Monitoring" : "Established";
                         }
 
-                        ConsoleHelper.Write(rawMessage, "", ConsoleColor.Green);
+                        ConsoleHelper.Write(rawMessage, "", ConsoleColor.Green, ConsoleColor.Black, true);
                         return;
                     case var _ when regex == rptLinksRegex:
                         // Handle RPT_LINKS event
-                        ConsoleHelper.Write("Handle RPT_LINKS event", "", ConsoleColor.Gray);
+                        ConsoleHelper.Write("Handle RPT_LINKS event", "", ConsoleColor.Gray, ConsoleColor.Black, true);
                         break;
                     case var _ when regex == newChannelRegex:
                         // Handle Newchannel event
-                        ConsoleHelper.Write("Handle Newchannel event", "", ConsoleColor.Gray);
+                        ConsoleHelper.Write("Handle Newchannel event", "", ConsoleColor.Gray, ConsoleColor.Black, true);
                         break;
                     case var _ when regex == hangupRegex:
                         // Handle Hangup event
-                        ConsoleHelper.Write("Handle Hangup event", "", ConsoleColor.Gray);
+                        ConsoleHelper.Write("Handle Hangup event", "", ConsoleColor.Gray, ConsoleColor.Black, true);
                         break;
                 }
             }
@@ -299,7 +299,7 @@ RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace);
         // Display non-visible characters
         rawMessage = string.Concat(normalizedMessage.Select(c => char.IsControl(c) ? $"\\x{(int)c:X2}" : c.ToString()));
 
-        ConsoleHelper.Write($"{Environment.NewLine}** No match for raw message ***********{Environment.NewLine}{Environment.NewLine}{normalizedMessage}{Environment.NewLine}", "", ConsoleColor.Yellow);
+        ConsoleHelper.Write($"{Environment.NewLine}** No match for raw message ***********{Environment.NewLine}{Environment.NewLine}{normalizedMessage}{Environment.NewLine}", "", ConsoleColor.Yellow, ConsoleColor.Black, true);
 
         //var regex = new Regex(@"(?<=^|\r\n)(Response|ActionID|Message|Node|Conn|LinkedNodes|RPT_LINKS):\s*(.*?)\r?\n", RegexOptions.Multiline);
         //foreach (Match match in regex.Matches(rawMessage))

@@ -17,11 +17,16 @@ namespace AsteriskDataStream.Models
         public static readonly NodeDictionary NodeDictionary = new();
         public static int InitialRootNodeNumber = 0; 
         private static readonly SemaphoreSlim Semaphore = new(1); // Allow up to N concurrent downloads
+        public static bool IsLoadingNetwork { get; private set; } = false;
 
         public static async Task LoadNodeNetworkAsync(int rootNodeNumber, bool isInitialCall = false)
         {
             if (isInitialCall)
+            {
                 InitialRootNodeNumber = rootNodeNumber;
+                IsLoadingNetwork = true;
+                ConsoleHelper.Write($"〖", ConsoleColor.Gray);
+            }
 
             try
             {
@@ -55,7 +60,7 @@ namespace AsteriskDataStream.Models
             }
             catch (Exception ex)
             {
-                ConsoleHelper.Write($"Exception: {ex.Message}", "", ConsoleColor.Red);
+                ConsoleHelper.WriteLine($"Exception: {ex.Message}", ConsoleColor.Red);
             }
 
             // Local function to simplify root node handling
@@ -85,6 +90,12 @@ namespace AsteriskDataStream.Models
                     return cached;
                 }
             }
+
+            if (isInitialCall)
+            {
+                IsLoadingNetwork = false;
+                ConsoleHelper.Write($"〗", ConsoleColor.Gray);
+            }
         }
 
         private static async Task<Node?> DownloadNodeInfoAsync(int _nodeNumber)
@@ -96,9 +107,9 @@ namespace AsteriskDataStream.Models
                 return returnNode;
             }
 
-            if (ApiRateLimiter.TryAddRequest(_nodeNumber.ToString()))
+            if (ApiRateLimiter.TryAddRequest())
             {
-                ConsoleHelper.Write($"Querying node {_nodeNumber.ToString()}.", "", ConsoleColor.Green);
+                ConsoleHelper.WriteLine($"Querying node {_nodeNumber.ToString()}.", ConsoleColor.Green);
 
                 string url = $"https://stats.allstarlink.org/api/stats/{_nodeNumber.ToString()}";
 
@@ -125,14 +136,14 @@ namespace AsteriskDataStream.Models
                     switch (response.StatusCode)
                     {
                         case System.Net.HttpStatusCode.TooManyRequests:
-                            ConsoleHelper.Write("HTTP 429: API rate limit exceeded", "", ConsoleColor.Yellow);
+                            ConsoleHelper.WriteLine("HTTP 429: API rate limit exceeded", ConsoleColor.Yellow);
                             ApiRateLimiter.FillUpQueue();
                             break;
                         case System.Net.HttpStatusCode.NotFound:
-                            ConsoleHelper.Write($"HTTP 404: {response.ReasonPhrase} ({url})", "", ConsoleColor.Red);
+                            ConsoleHelper.WriteLine($"HTTP 404: {response.ReasonPhrase} ({url})", ConsoleColor.Red);
                             break;
                         default:
-                            ConsoleHelper.Write($"HTTP Error {response.StatusCode}: {response.ReasonPhrase}", "", ConsoleColor.Red);
+                            ConsoleHelper.WriteLine($"HTTP Error {response.StatusCode}: {response.ReasonPhrase}", ConsoleColor.Red);
                             break;
                     }
                 }
@@ -145,7 +156,7 @@ namespace AsteriskDataStream.Models
         {
             List<string> keyedNodes = new();
 
-            if (!ApiRateLimiter.TryAddRequest($"GetNodesTransmittingAsync-{DateTime.UtcNow.Minute}-{DateTime.UtcNow.Second}"))
+            if (!ApiRateLimiter.TryAddRequest())
             {
                 return keyedNodes;
             }
@@ -178,7 +189,7 @@ namespace AsteriskDataStream.Models
             }
             catch (Exception ex)
             {
-                ConsoleHelper.Write($"Exception: {ex.Message}", "", ConsoleColor.Red);
+                ConsoleHelper.WriteLine($"Exception: {ex.Message}", ConsoleColor.Red);
             }
 
             return keyedNodes;

@@ -33,14 +33,14 @@ namespace AsteriskDataStream.Services
         {
             if (File.Exists(CacheFilePath) && File.GetLastWriteTime(CacheFilePath) > DateTime.UtcNow.AddDays(-1))
             {
-                ConsoleHelper.Write("Node map data cache is still valid, no need to download", "", ConsoleColor.DarkYellow);
+                ConsoleHelper.Write("Node map data cache is still valid, no need to download", ConsoleColor.DarkYellow);
 
                 var json = File.ReadAllText(CacheFilePath);
                 nodesMetadata = JsonConvert.DeserializeObject<List<NodeMetadata>>(json);
             }
             else
             {
-                ConsoleHelper.Write("Cache is old or missing. Attempting to download...", "", ConsoleColor.DarkYellow);
+                ConsoleHelper.Write("Cache is old or missing. Attempting to download...", ConsoleColor.DarkYellow);
 
                 using (var httpClient = new HttpClient())
                 {
@@ -51,7 +51,7 @@ namespace AsteriskDataStream.Services
                     File.WriteAllText(CacheFilePath, json);
                 }
 
-                ConsoleHelper.Write("Node metadata was updated.", "", ConsoleColor.DarkYellow);
+                ConsoleHelper.Write("Node metadata was updated.", ConsoleColor.DarkYellow);
             }
 
 
@@ -89,7 +89,7 @@ namespace AsteriskDataStream.Services
             NodeMetadata? nodeMetadata = nodesMetadata.FirstOrDefault(node => node.NodeNumber == nodeNumber);
             if (nodeMetadata == default)
             {
-                ConsoleHelper.Write($"Node {nodeNumber} not found in metadata.", "", ConsoleColor.Red);
+                ConsoleHelper.Write($"Node {nodeNumber} not found in metadata.", ConsoleColor.Red);
                 nodeMetadata = new NodeMetadata();
             }
             return nodeMetadata;

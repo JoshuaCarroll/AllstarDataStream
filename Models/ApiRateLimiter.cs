@@ -5,6 +5,7 @@
         public static int MaxRequestsPerPeriod { get; set; } = 30;
         public static TimeSpan Period { get; set; } = TimeSpan.FromMinutes(1);
         private static Dictionary<string, DateTime> RecentQueries = new();
+        private static int RequestCount = 0;
 
         public static bool CanContinue
         {
@@ -14,39 +15,26 @@
             }
         }
 
-        public static bool TryAddRequest(string key)
+        public static bool TryAddRequest()
         {
             if (!CanContinue)
             {
                 return false;
             }
 
-            if (RecentQueries.ContainsKey(key))
-            {
-                RecentQueries[key] = DateTime.UtcNow;
-            }
-            else
-            {
-                RecentQueries.Add(key, DateTime.UtcNow);
-            }
-
-            return true;
+            string key = $"{RequestCount++.ToString()}";
+            return RecentQueries.TryAdd(key, DateTime.UtcNow);
         }
 
         public static void RemoveExpired()
         {
-            bool removedSome = false;
-
             foreach (var kv in RecentQueries)
             {
                 if (kv.Value + Period < DateTime.UtcNow)
                 {
-                    removedSome = true;
                     RecentQueries.Remove(kv.Key);
                 }
             }
-            if (removedSome)
-                ConsoleHelper.Write($"Rate limiter updated. {MaxRequestsPerPeriod - RecentQueries.Count} queries available.", "", ConsoleColor.Gray);
         }
 
         /// <summary>
