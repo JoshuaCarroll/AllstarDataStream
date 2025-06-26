@@ -39,8 +39,10 @@ namespace AsteriskDataStream.Services
 
         public void AutomatedTasks()
         {
-            
-            if (!_automatedTasksRunning && !AllstarLinkClient.IsLoadingNetwork && AllstarLinkClient.NodeDictionary.Count > 0)
+            if (AllstarLinkClient.NodeDictionary.Count == 0)
+                return;
+
+            if (!_automatedTasksRunning && !AllstarLinkClient.IsLoadingNetwork)
             {
                 _automatedTasksRunning = true;
                 ConsoleHelper.Write(" 🔲 ", ConsoleColor.Gray);

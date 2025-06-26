@@ -19,6 +19,21 @@ namespace AsteriskDataStream.Models
         private static readonly SemaphoreSlim Semaphore = new(1); // Allow up to N concurrent downloads
         public static bool IsLoadingNetwork { get; private set; } = false;
 
+        public static async Task TryLoadNodeNetworkAsync(int rootNodeNumber)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                if (!AllstarLinkClient.IsLoadingNetwork && ApiRateLimiter.CanContinue && rootNodeNumber >= 2000)
+                {
+                    await LoadNodeNetworkAsync(rootNodeNumber, true);
+                    break; // Exit the loop early if successful
+                }
+
+                // Wait 3 seconds before rechecking
+                await Task.Delay(TimeSpan.FromSeconds(3));
+            }
+        }
+
         public static async Task LoadNodeNetworkAsync(int rootNodeNumber, bool isInitialCall = false)
         {
             if (isInitialCall)
@@ -152,6 +167,25 @@ namespace AsteriskDataStream.Models
             return returnNode;
         }
 
+        public static async Task<List<string>> TryGetNodesTransmittingAsync()
+        {
+            List<string> returnValue = new();
+
+            for (int i = 0; i < 3; i++)
+            {
+                if (!AllstarLinkClient.IsLoadingNetwork && ApiRateLimiter.CanContinue)
+                {
+                    returnValue = await GetNodesTransmittingAsync();
+                    break; // Exit the loop early if successful
+                }
+
+                // Wait 3 seconds before rechecking
+                await Task.Delay(TimeSpan.FromSeconds(3));
+            }
+
+            return returnValue;
+        }
+
         public static async Task<List<string>> GetNodesTransmittingAsync()
         {
             List<string> keyedNodes = new();
@@ -189,12 +223,11 @@ namespace AsteriskDataStream.Models
             }
             catch (Exception ex)
             {
-                ConsoleHelper.WriteLine($"Exception: {ex.Message}", ConsoleColor.Red);
+                ConsoleHelper.WriteLine($"Exception in GetNodesTransmittingAsync: {ex.Message}", ConsoleColor.Red);
             }
 
             return keyedNodes;
         }
-
 
         private static Node NewNonAllstarNode(int nodeNumber)
         {
