@@ -18,8 +18,8 @@ namespace AsteriskDataStream.Services
             _timer = new Timer(
                 callback: _ => AutomatedTasks(),
                 state: null,
-                dueTime: TimeSpan.FromSeconds(10),              // Start time
-                period: TimeSpan.FromSeconds(15));              // Interval time
+                dueTime: TimeSpan.FromSeconds(20),              // Start time
+                period: TimeSpan.FromSeconds(20));              // Interval time
 
             return Task.CompletedTask;
         }
@@ -39,7 +39,7 @@ namespace AsteriskDataStream.Services
 
         public void AutomatedTasks()
         {
-            if (AllstarLinkClient.NodeDictionary.Count == 0)
+            if (AllstarLinkClient.NodeDictionary.Count == 0 || AllstarLinkClient.InitialRootNodeNumber == 0)
                 return;
 
             if (!_automatedTasksRunning && !AllstarLinkClient.IsLoadingNetwork)
@@ -52,15 +52,14 @@ namespace AsteriskDataStream.Services
                 ApiRateLimiter.RemoveExpired();
 
                 // Load any null nodes - they haven't loaded yet
-                //if (AllstarLinkClient.InitialRootNodeNumber != 0)
-                 //   AllstarLinkClient.LoadNodeNetworkAsync(AllstarLinkClient.InitialRootNodeNumber, true).GetAwaiter();
+                //AllstarLinkClient.TryLoadNodeNetworkAsync(AllstarLinkClient.InitialRootNodeNumber, true).GetAwaiter();
                 
                 ConsoleHelper.Rewrite("☑ ", 3, ConsoleColor.Gray);
                 _automatedTasksRunning = false;
             }
             else
             {
-                ConsoleHelper.Write("⏳ ", ConsoleColor.Gray); // Hourglass symbol
+                ConsoleHelper.WriteLine("⏳", ConsoleColor.Gray); // Hourglass symbol
             }
         }
     }

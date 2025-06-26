@@ -34,7 +34,7 @@ namespace AsteriskDataStream.Models
             }
         }
 
-        public static async Task LoadNodeNetworkAsync(int rootNodeNumber, bool isInitialCall = false)
+        private static async Task LoadNodeNetworkAsync(int rootNodeNumber, bool isInitialCall = false)
         {
             if (isInitialCall)
             {
@@ -122,18 +122,22 @@ namespace AsteriskDataStream.Models
                 return returnNode;
             }
 
-            if (ApiRateLimiter.TryAddRequest())
+            if (ApiRateLimiter.TryAddRequest(_nodeNumber))
             {
                 ConsoleHelper.WriteLine($"Querying node {_nodeNumber.ToString()}.", ConsoleColor.Green);
 
                 string url = $"https://stats.allstarlink.org/api/stats/{_nodeNumber.ToString()}";
 
                 HttpClient _httpClient = new();
-                _httpClient.Timeout = TimeSpan.FromSeconds(10); // Set a timeout for the HTTP requests
+                _httpClient.Timeout = TimeSpan.FromSeconds(5); // Set a timeout for the HTTP requests
                 var response = await _httpClient.GetAsync(url);
+
+                ConsoleHelper.WriteLine($"  HTTP response received.", ConsoleColor.Yellow);
 
                 if (response.IsSuccessStatusCode)
                 {
+                    ConsoleHelper.WriteLine($"  HTTP response was successful.", ConsoleColor.Yellow);
+
                     var jsonString = await response.Content.ReadAsStringAsync();
                     RootNode rootNode = JsonSerializer.Deserialize<AllstarLinkStatsApi.RootNode>(jsonString)!;
 
@@ -148,17 +152,19 @@ namespace AsteriskDataStream.Models
                 }
                 else
                 {
+                    ConsoleHelper.WriteLine($"  HTTP response was FAIL.", ConsoleColor.Yellow);
+
                     switch (response.StatusCode)
                     {
                         case System.Net.HttpStatusCode.TooManyRequests:
-                            ConsoleHelper.WriteLine("HTTP 429: API rate limit exceeded", ConsoleColor.Yellow);
+                            ConsoleHelper.WriteLine("HTTP 429: API rate limit exceeded. Telling rate limiter...", ConsoleColor.Yellow);
                             ApiRateLimiter.FillUpQueue();
                             break;
                         case System.Net.HttpStatusCode.NotFound:
-                            ConsoleHelper.WriteLine($"HTTP 404: {response.ReasonPhrase} ({url})", ConsoleColor.Red);
+                            ConsoleHelper.WriteLine($"DownloadNodeInfoAsync(): HTTP 404: {response.ReasonPhrase} ({url})", ConsoleColor.Red);
                             break;
                         default:
-                            ConsoleHelper.WriteLine($"HTTP Error {response.StatusCode}: {response.ReasonPhrase}", ConsoleColor.Red);
+                            ConsoleHelper.WriteLine($"DownloadNodeInfoAsync(): HTTP Error {response.StatusCode}: {response.ReasonPhrase}", ConsoleColor.Red);
                             break;
                     }
                 }
@@ -186,7 +192,7 @@ namespace AsteriskDataStream.Models
             return returnValue;
         }
 
-        public static async Task<List<string>> GetNodesTransmittingAsync()
+        private static async Task<List<string>> GetNodesTransmittingAsync()
         {
             List<string> keyedNodes = new();
 
@@ -199,7 +205,7 @@ namespace AsteriskDataStream.Models
 
             try
             {
-                var response = await httpClient.GetAsync("https://stats.allstarlink.org/stats/keyed");
+                var response = await httpClient.GetAsync($"https://stats.allstarlink.org/stats/keyed?_ts={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}");
 
                 if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 {

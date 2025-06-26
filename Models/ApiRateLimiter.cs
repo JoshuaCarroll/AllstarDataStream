@@ -5,7 +5,6 @@
         public static int MaxRequestsPerPeriod { get; set; } = 30;
         public static TimeSpan Period { get; set; } = TimeSpan.FromMinutes(1);
         private static Dictionary<string, DateTime> RecentQueries = new();
-        private static int RequestCount = 0;
 
         public static bool CanContinue
         {
@@ -17,13 +16,22 @@
 
         public static bool TryAddRequest()
         {
+            return TryAddRequest(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString());
+        }
+
+        public static bool TryAddRequest(int itemKey)
+        {
+            return TryAddRequest(itemKey.ToString());
+        }
+
+        public static bool TryAddRequest(string itemKey)
+        {
             if (!CanContinue)
             {
                 return false;
             }
 
-            string key = $"{RequestCount++.ToString()}";
-            return RecentQueries.TryAdd(key, DateTime.UtcNow);
+            return RecentQueries.TryAdd(itemKey, DateTime.UtcNow);
         }
 
         public static void RemoveExpired()

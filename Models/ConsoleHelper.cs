@@ -62,7 +62,14 @@ namespace AsteriskDataStream.Models
         public static void Rewrite(string outputString, int numberOfCharactersToRewrite, ConsoleColor foreColor)
         {
             // Move cursor back to overwrite the last N characters
-            Console.SetCursorPosition(Console.CursorLeft - numberOfCharactersToRewrite, Console.CursorTop);
+            try
+            {
+                Console.SetCursorPosition(Console.CursorLeft - numberOfCharactersToRewrite, Console.CursorTop);
+            }
+            catch (Exception)
+            {
+                // shit happens. don't worry about it.
+            }
             Write(outputString, "", foreColor, _originalBackColor, false);
         }
     }
