@@ -225,7 +225,7 @@ namespace AsteriskDataStream.Models
                     ?.Select(li => li.InnerText.Trim())
                     .ToList() ?? new List<string>();
 
-                keyedNodes = NodeDictionary.ContainsAny(keyedNodes);
+                //keyedNodes = NodeDictionary.ContainsAny(keyedNodes);
             }
             catch (Exception ex)
             {
