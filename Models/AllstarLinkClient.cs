@@ -16,8 +16,12 @@ namespace AsteriskDataStream.Models
 
         public static readonly NodeDictionary NodeDictionary = new();
         public static int InitialRootNodeNumber = 0; 
-        private static readonly SemaphoreSlim Semaphore = new(1); // Allow up to N concurrent downloads
         public static bool IsLoadingNetwork { get; private set; } = false;
+
+        private static readonly HttpClient _httpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(5)
+        };
 
         public static async Task TryLoadNodeNetworkAsync(int rootNodeNumber)
         {
@@ -125,35 +129,21 @@ namespace AsteriskDataStream.Models
             if (ApiRateLimiter.TryAddRequest(_nodeNumber))
             {
                 ConsoleHelper.WriteLine($"Querying node {_nodeNumber.ToString()}.", ConsoleColor.Green);
-
                 string url = $"https://stats.allstarlink.org/api/stats/{_nodeNumber.ToString()}";
-
-                HttpClient _httpClient = new();
-                _httpClient.Timeout = TimeSpan.FromSeconds(5); // Set a timeout for the HTTP requests
                 var response = await _httpClient.GetAsync(url);
-
-                ConsoleHelper.WriteLine($"  HTTP response received.", ConsoleColor.Yellow);
-
                 if (response.IsSuccessStatusCode)
                 {
-                    ConsoleHelper.WriteLine($"  HTTP response was successful.", ConsoleColor.Yellow);
-
                     var jsonString = await response.Content.ReadAsStringAsync();
                     RootNode rootNode = JsonSerializer.Deserialize<AllstarLinkStatsApi.RootNode>(jsonString)!;
-
                     returnNode = rootNode.node;
-
                     if (rootNode.stats?.data != null)
                     {
                         returnNode.data = rootNode.stats.data;
                     }
-                    
                     returnNode.Timestamp = DateTime.UtcNow; // Set the timestamp to the current time
                 }
                 else
                 {
-                    ConsoleHelper.WriteLine($"  HTTP response was FAIL.", ConsoleColor.Yellow);
-
                     switch (response.StatusCode)
                     {
                         case System.Net.HttpStatusCode.TooManyRequests:
@@ -224,8 +214,6 @@ namespace AsteriskDataStream.Models
                     .SelectNodes("//table//tr/td[1]/a")
                     ?.Select(li => li.InnerText.Trim())
                     .ToList() ?? new List<string>();
-
-                //keyedNodes = NodeDictionary.ContainsAny(keyedNodes);
             }
             catch (Exception ex)
             {

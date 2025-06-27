@@ -14,26 +14,10 @@ namespace AsteriskDataStream.Controllers
     public class AllstarController : Controller
     {
         private static List<AllstarAmiClient> _allstarClients = new();
-        private readonly List<AMISettings> _amiSettingsList;
 
         public AllstarController(IConfiguration configuration)
         {
-            _amiSettingsList = configuration.GetSection("AMISettings").Get<List<AMISettings>>()
-                ?? throw new InvalidOperationException("AMISettings configuration is missing or empty.");
 
-            if (_allstarClients.Count == 0)
-            {
-                foreach (var settings in _amiSettingsList)
-                {
-                    _allstarClients.Add(new AllstarAmiClient(
-                        settings.Host,
-                        settings.Port,
-                        settings.Username,
-                        settings.Password,
-                        settings.NodeNumber
-                    ));
-                }
-            }
         }
 
         [HttpGet("")]
@@ -56,7 +40,7 @@ namespace AsteriskDataStream.Controllers
                     hasClearedExpiredConnections = true;
                 }
 
-                await client.GetNodeInfoAsync(client.NodeNumber);    
+                await client.GetNodeInfoAsync(client.NodeNumber);
                 allConnections.AddRange(client.AllstarConnections);
             }
 
