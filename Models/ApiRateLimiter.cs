@@ -36,13 +36,16 @@
 
         public static void RemoveExpired()
         {
-            foreach (var kv in RecentQueries)
+            var keysToRemove = RecentQueries
+                .Where(kv => kv.Value + Period < DateTime.UtcNow)
+                .Select(kv => kv.Key)
+                .ToList();
+
+            foreach (var key in keysToRemove)
             {
-                if (kv.Value + Period < DateTime.UtcNow)
-                {
-                    RecentQueries.Remove(kv.Key);
-                }
+                RecentQueries.Remove(key);
             }
+
         }
 
         /// <summary>
