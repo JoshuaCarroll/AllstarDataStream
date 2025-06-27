@@ -8,19 +8,13 @@ namespace AsteriskDataStream.Services
 {
     public class AutomatedTasksService : IHostedService, IDisposable
     {
-        private Timer? _timer;
         private static bool _automatedTasksRunning = false;
+        private CancellationTokenSource _cts;
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            ConsoleHelper.WriteLine("🔄 Starting Automated Tasks Service...", ConsoleColor.Yellow);
-
-            _timer = new Timer(
-                callback: _ => AutomatedTasks(),
-                state: null,
-                dueTime: TimeSpan.FromSeconds(20),              // Start time
-                period: TimeSpan.FromSeconds(20));              // Interval time
-
+            _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _ = RunPeriodicTaskAsync(_cts.Token);
             return Task.CompletedTask;
         }
 
@@ -28,16 +22,32 @@ namespace AsteriskDataStream.Services
         {
             ConsoleHelper.WriteLine("🛑 Stopping Automated Tasks Service...", ConsoleColor.Yellow);
 
-            _timer?.Change(Timeout.Infinite, 0); // Stop the timer
+            _cts?.Cancel();
             return Task.CompletedTask;
         }
 
         public void Dispose()
         {
-            _timer?.Dispose();
+            
         }
 
-        public void AutomatedTasks()
+        private async Task RunPeriodicTaskAsync(CancellationToken token)
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(29));
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                try
+                {
+                    await AutomatedTasksAsync();
+                }
+                catch (Exception ex)
+                {
+                    ConsoleHelper.WriteLine($"Automated task error: {ex.Message}", ConsoleColor.Red);
+                }
+            }
+        }
+
+        public async Task AutomatedTasksAsync()
         {
             if (AllstarLinkClient.NodeDictionary.Count == 0 || AllstarLinkClient.InitialRootNodeNumber == 0)
                 return;
@@ -52,7 +62,7 @@ namespace AsteriskDataStream.Services
                 ApiRateLimiter.RemoveExpired();
 
                 // Load any null nodes - they haven't loaded yet
-                //AllstarLinkClient.TryLoadNodeNetworkAsync(AllstarLinkClient.InitialRootNodeNumber, true).GetAwaiter();
+                await AllstarLinkClient.TryLoadNodeNetworkAsync(AllstarLinkClient.InitialRootNodeNumber);
                 
                 ConsoleHelper.Rewrite("☑ ", 3, ConsoleColor.Gray);
                 _automatedTasksRunning = false;
